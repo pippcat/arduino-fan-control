@@ -13,9 +13,10 @@ Table of Contents
 -----------------
 <!-- vim-markdown-toc GFM -->
 
-* [How it works](#how-it-works)
-* [Wiring](#wiring)
-* [Bugs](#bugs)
+	* [How it works](#how-it-works)
+	* [Wiring](#wiring)
+* [!wiring plan](#wiring-plan)
+	* [Bugs](#bugs)
 
 <!-- vim-markdown-toc -->
 
@@ -23,12 +24,15 @@ How it works
 ------------
 
 ![decision tree](images/fancontrol.png?raw=true "decision tree of program logic")
+<<<<<<< HEAD
 
 
 Wiring
 ------
 
-![wiring plan](images/wiringplan.png?raw=true "wiring plan")
+![wiring plan](images/wireplan.png?raw=true "wiring plan")
+=======
+>>>>>>> 745011bab8f32156abbbdc5b1d97892e8e2bf2fd
 
 Bugs
 ----
