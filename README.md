@@ -11,12 +11,12 @@ This Sketch is used to control an Arduino Nano which is used to get the wet air 
 
 Table of Contents
 -----------------
+
 <!-- vim-markdown-toc GFM -->
 
-	* [How it works](#how-it-works)
-	* [Wiring](#wiring)
-* [!wiring plan](#wiring-plan)
-	* [Bugs](#bugs)
+* [How it works](#how-it-works)
+* [Wire plan](#wire-plan)
+* [Bugs](#bugs)
 
 <!-- vim-markdown-toc -->
 
@@ -27,12 +27,10 @@ How it works
 <<<<<<< HEAD
 
 
-Wiring
-------
+Wire plan
+---------
 
 ![wiring plan](images/wireplan.png?raw=true "wiring plan")
-=======
->>>>>>> 745011bab8f32156abbbdc5b1d97892e8e2bf2fd
 
 Bugs
 ----
