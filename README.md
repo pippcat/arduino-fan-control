@@ -12,7 +12,7 @@ This Sketch is used to control an Arduino Nano which is used to get the wet air 
 How it works
 ------------
 
-![decision tree](images/fancontrol.img.jpg?raw=true "decision tree of program logic")
+![decision tree](images/fancontrol.png?raw=true "decision tree of program logic")
 
 Bugs
 ----
