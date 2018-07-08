@@ -9,10 +9,26 @@ This Sketch is used to control an Arduino Nano which is used to get the wet air 
 - display data on a 20x4 I2C-LCD
 - log the measurements to an SD card, using a RTC module for timestamping
 
+Table of Contents
+-----------------
+<!-- vim-markdown-toc GFM -->
+
+* [How it works](#how-it-works)
+* [Wiring](#wiring)
+* [Bugs](#bugs)
+
+<!-- vim-markdown-toc -->
+
 How it works
 ------------
 
-![decision tree](images/fancontrol.img.jpg?raw=true "decision tree of program logic")
+![decision tree](images/fancontrol.png?raw=true "decision tree of program logic")
+
+
+Wiring
+------
+
+![wiring plan](images/wiringplan.png?raw=true "wiring plan")
 
 Bugs
 ----
