@@ -1,66 +1,52 @@
-// Lüftersteuerung zur Kellerentlüftung mit Innen- und Außensensor
+// Arduino Fan Control
 // Written by tommy.schoenherr@posteo.de , public domain
 
-// Bugs:
-// - Steuerung kackt regelmäßig ab: Display zeigt nix an, Steuerung bleibt hängen
-// - Sensoren werden öfter für ~1 Sek nicht erkannt
-
-// ToDos:
-// - Stabilitätsprobleme lösen
-
-#include <SPI.h> // für die SD Karte
-#include <SD.h> // für die SD Karte
-#include <LiquidCrystal_I2C.h> // Für den LCD - https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library/blob/master/LiquidCrystal_I2C.h
-LiquidCrystal_I2C lcd(0x27, 20, 4); // ??, Spalten, Zeilen
-#include "RTClib.h" // Für die Uhr - https://www.elecrow.com/wiki/index.php?title=File:RTC.zip
+#include <SPI.h> // for SD card
+#include <SD.h> // for SD card
+#include <LiquidCrystal_I2C.h> // For the LCD: https://github.com/fdebrabander/Arduino-LiquidCrystal-I2C-library/blob/master/LiquidCrystal_I2C.h
+LiquidCrystal_I2C lcd(0x27, 20, 4); // ??, rows, columns
+#include "RTClib.h" // for the Real Time Clock: https://www.elecrow.com/wiki/index.php?title=File:RTC.zip
 RTC_DS1307 RTC;
-#include <math.h> // Für Berechnungen
+#include <math.h> // for calculations
 // DHT Library:
 #include <SimpleDHT.h>
-int dataPinSensor1 = 2;  // innen
-int dataPinSensor2 = 3;  // aussen
+int dataPinSensor1 = 2;  // inside
+int dataPinSensor2 = 3;  // outside
 SimpleDHT22 dht22;
 
-// alte DHT Library:
-//#include "DHT.h" // Für die Sensoren
-//#define DHT1PIN 2     // PIN innen
-//#define DHT2PIN 3     // PIN aussen
-//#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-//DHT dht1(DHT1PIN, DHTTYPE); // innen
-//DHT dht2(DHT2PIN, DHTTYPE); // aussen
-
-// Variablen für die SD Karte:
+// variables for the SD card
 Sd2Card card;
 SdVolume volume;
 SdFile root;
 const int chipSelect = 4;
-const int relaisPin = 8; // PIN zum schalten des Relais
-int lastwrite = 0; // für Schreibcheck SD Karte
-boolean Luefter = false; // Lüfter an=true oder aus=false
-int anzeigedauer = 5000; // Anzeigedauer der 3 LCD Screens in ms
+const int relaisPin = 8; // PIN to switch the relais
+int lastwrite = 0; // writecheck for SD card
+boolean fan = false; // fan on = true or off = false
+int screentime = 5000; // screen time of the diffent pages in ms
 
 ////////////////////////////////////
-// Setup
+// setup
 /////////////////////////////////////
 void setup() {
-  // db("a");
+  // db("a"); //debug letters will be located in the corner of the display if enablead
   lcd.begin();
-  pinMode(relaisPin, OUTPUT); // Relaispin als Output setzen
+  pinMode(relaisPin, OUTPUT); // set relaisPin as output
   //dht1.begin();
   //dht2.begin();
   RTC.begin();
   if (! RTC.isrunning()) {
-    //Serial.println("RTC is NOT running!\n"); // alle serials auskommentiert, sonst gibts RAM Probleme
-    RTC.adjust(DateTime(__DATE__, __TIME__)); // RTC auf Compilezeit setzen
+    // RAM issues if serial.println is enabled, therefore uncommented in whole sketch :((
+    //Serial.println("RTC is NOT running!\n");
+    RTC.adjust(DateTime(__DATE__, __TIME__)); // set RTC to system time
   }
-  //Serial.begin(9600); // Serielle Kommunikation starten
+  //Serial.begin(9600); // start serial communication
   while (!Serial) {
-    ; // warten, bis serieller Port bereit ist
+    ; // wait until serial port is ready
   }
 
   //Serial.print("SD Karte wird initialisiert.\n");
 
-  // überprüfen, ob SD Karte verfügbar ist
+  // check avaliability of SD card
   if (!SD.begin(chipSelect)) {
     //Serial.println("Initialisierung der SD Karte fehlgeschlagen.\n");
     return;
@@ -70,15 +56,15 @@ void setup() {
 }
 
 void loop() {  
+  ///////////////////////////////////////////////////////////////
+  // sensor readout // DB: c -> d
+  ///////////////////////////////////////////////////////////////
   //Serial.print("//// BEGIN LOOP /// \n");
-  ///////////////////////////////////////////////////////////////
-  // Auslesen der Sensoren // DB: c -> d
-  ///////////////////////////////////////////////////////////////
   lcd.setCursor(19, 3);
   lcd.print("c");
   //Serial.print("Sensoren werden ausgelesen\n");
-   // Lese Sensor 1:
-  ////Serial.println("Lese Sensor 1");
+  // read sensor 1:
+  //Serial.println("Lese Sensor 1");
   byte temperature = 0;
   byte humidity = 0;
   int err = SimpleDHTErrSuccess;
@@ -104,19 +90,13 @@ void loop() {
   //Serial.print((int)humidity); //Serial.println(" %");
   float t2 = (float)temperature;
   float h2 = (float)humidity;
-  // alte library
-  //float h1 = dht1.readHumidity(); // innen
-  //float t1 = dht1.readTemperature();
-  //float h2 = dht2.readHumidity(); // außen
-  //float t2 = dht2.readTemperature();
   lcd.setCursor(19, 3);
   lcd.print("d");
   
   ///////////////////////////////////////////////////////////////
-  // Die Sensoren geben manchmal keinen Messwert zurück,
-  // was dazu führt, dass das Logfile korrumpiert wird.
-  // Deshalb wird der komplette Loop nur ausgeführt
-  // wenn alle Messwerte erkannt wurden:
+  // Sometimes the sensors don't give back a proper value
+  // which leads to a corrupted log file.
+  // Therefore the loop is only executed if all values are valid.
   // DB: e -> f
   lcd.print("e");
   if (isnan(h1) || isnan(t1) || isnan(h2) || isnan(t2)) {
@@ -126,18 +106,18 @@ void loop() {
     lcd.setCursor(19, 3);
     lcd.print("e");
     //Serial.println("SENSORFEHLER!\n");
-    // Die Sensoren sind öfters für ~1 Sekunde nicht erreichbar, aber
-    // falls das Problem länger bestehen sollte: Lüfter ausschalten! 
-    Luefter = false; 
+    // Sometimes sensors loose connection for ~1 second
+    // shut down fan if the problem persists.
+    fan = false; 
     digitalWrite(relaisPin, LOW);
-    delay(anzeigedauer); // Wartezeit vor neuem Versuch 
+    delay(screentime); // wait before retrying
     lcd.print("f");
-    //return; // was ist der Unterschied mit oder ohne?
+    return;
   }
   else {
     
     ///////////////////////////////////////////////////////////////////////////////
-    // Berechnung der Luftfeuchte nach http://www.wetterochs.de/wetter/feuchte.html
+    // Calculations done after http://www.wetterochs.de/wetter/feuchte.html
     // DB: g -> h
     ///////////////////////////////////////////////////////////////////////////////
     lcd.clear();
@@ -146,12 +126,12 @@ void loop() {
     //Serial.print("Berechnung der Luftfeuchte\n");
     float a1, a2 = 7.5;
     float b1, b2 = 237.3;
-    // a und b für T>=0°C:
+    // a and b for T>=0°C:
     if (t1 > 0) {
       a1 = 7.5;
       b1 = 237.3;
     }
-    // a und b für T<0°C:
+    // a and b for T<0°C:
     else {
       a1 = 7.6;
       b1 = 240.7;
@@ -164,26 +144,26 @@ void loop() {
       a2 = 7.6;
       b2 = 240.7;
     }
-    // SDD = Sättigungsdampfdruck in hPa; DaDr = Dampfdruck in hPa;
-    // TD = Taupunkttemp. in °C; AF = abs. Feuchte in g H20 pro m^3 Luft
-    float SDD1 = 6.1078 * pow(10, ((a1 * t1) / (b1 + t1)));
-    float DaDr1 = h1 / 100 * SDD1;
-    float v1 = log10(DaDr1 / 6.1078);
-    float TD1 = b1 * v1 / (a1 - v1);
-    float AF1 = pow(10, 5) * 18.016 / 8314.3 * DaDr1 / (t1 + 273.15);
-    float SDD2 = 6.1078 * pow(10, ((a2 * t2) / (b2 + t2)));
-    float DaDr2 = h2 / 100 * SDD2;
-    float v2 = log10(DaDr2 / 6.1078);
-    float TD2 = b2 * v2 / (a2 - v2);
-    float AF2 = pow(10, 5) * 18.016 / 8314.3 * DaDr2 / (t2 + 273.15);
+    // SVP = saturation vapor pressure in hPa; VaPr = vapor pressure in hPa;
+    // TODP = temperature of dew point  in °C; AH = absolute humidity in g H20 per m^3 air
+    float SVP1 = 6.1078 * pow(10, ((a1 * t1) / (b1 + t1)));
+    float VaPr1 = h1 / 100 * SVP1;
+    float v1 = log10(VaPr1 / 6.1078);
+    float TODP1 = b1 * v1 / (a1 - v1);
+    float AH1 = pow(10, 5) * 18.016 / 8314.3 * VaPr1 / (t1 + 273.15);
+    float SVP2 = 6.1078 * pow(10, ((a2 * t2) / (b2 + t2)));
+    float VaPr2 = h2 / 100 * SVP2;
+    float v2 = log10(VaPr2 / 6.1078);
+    float TODP2 = b2 * v2 / (a2 - v2);
+    float AH2 = pow(10, 5) * 18.016 / 8314.3 * VaPr2 / (t2 + 273.15);
     float dif_t = t1 - t2;
     float dif_h = h1 - h2;
-    ////Serial.print("Sättigungsdampfdruck innen = "); //Serial.print(SDD1); //Serial.print("hPa; ");
-    ////Serial.print("Sättigungsdampfdruck aussen = "); //Serial.print(SDD2); //Serial.print("hPa; ");
-    ////Serial.print("Taupunkttemperatur innen = "); //Serial.print(TD1); //Serial.print("°C; ");
-    ////Serial.print("Taupunkttemperatur aussen = "); //Serial.print(TD2); //Serial.print("°C; ");
-    ////Serial.print("Absolute Feuchte innen = "); //Serial.print(AF1); //Serial.print("g/m³; ");
-    ////Serial.print("Absolute Feuchte aussen = "); //Serial.print(AF2); //Serial.print("g/m³; ");
+    ////Serial.print("Sättigungsdampfdruck innen = "); //Serial.print(SVP1); //Serial.print("hPa; ");
+    ////Serial.print("Sättigungsdampfdruck aussen = "); //Serial.print(SVP2); //Serial.print("hPa; ");
+    ////Serial.print("Taupunkttemperatur innen = "); //Serial.print(TODP1); //Serial.print("°C; ");
+    ////Serial.print("Taupunkttemperatur aussen = "); //Serial.print(TODP2); //Serial.print("°C; ");
+    ////Serial.print("Absolute Feuchte innen = "); //Serial.print(AH1); //Serial.print("g/m³; ");
+    ////Serial.print("Absolute Feuchte aussen = "); //Serial.print(AH2); //Serial.print("g/m³; ");
     ////Serial.print("Temperaturunterschied = "); //Serial.print(dif_t); //Serial.print("°C; ");
     ////Serial.print("Luftfeuchtenunterschied = "); //Serial.print(dif_t); //Serial.print("%\n");
     
@@ -191,29 +171,29 @@ void loop() {
     lcd.print("h");
     
     ///////////////////////////////////////////////////////////////////////
-    // Lueftersteuerung // DB: i -> j
+    // fan control // DB: i -> j
     ///////////////////////////////////////////////////////////////////////
     lcd.setCursor(19, 3);
     lcd.print("i");
-    if (AF2 > AF1) { // abs. LF außen größer -> Lüfter aus
+    if (AH2 > AH1) { // abs. hum. outside is bigger -> switch off fan
       //Serial.print("Absolute Luftfeuchte außen größer -> Lüfter aus!\n");
-      Luefter = false;
+      fan = false;
       digitalWrite(relaisPin, LOW);
     }
-    else { // abs. LF außen kleiner
+    else { // abs. hum. outside smaller
       //Serial.print("Absolute Luftfeuchte innen größer.\n");
-      Luefter = false;
+      fan = false;
       digitalWrit  e(relaisPin, LOW);
-      if ( t2 > t1 ) { // aussen waermer als drinnen -> Lüfter an
+      if ( t2 > t1 ) { // outside is warmer than inside -> switch on fan
         //Serial.print("Außen wärmer als innen -> Lüfter an!\n");
-        Luefter = true;
+        fan = true;
         digitalWrite(relaisPin, HIGH);
       }
-      else { // aussen kaelter als innen
+      else { // outside is colder than inside
         //Serial.print("Außen kälter als innen.\n");
-        if ( t1 > TD1 ) { // Temp. im Keller über Taupunkt?
+        if ( t1 > TODP1 ) { // is the temperature inside bigger than the dew point?
           //Serial.print("Temperatur im Keller über Taupunkt -> Lüfter an!\n");
-          Luefter = true;
+          fan = true;
           digitalWrite(relaisPin, HIGH);
         }
       }
@@ -224,12 +204,12 @@ void loop() {
     //////////////////////////////////////////////////////////////////////
     // Display // DB: k, l, m
     ///////////////////////////////////////////////////////////////////////
-    // LCD Bild 1: INNEN
+    // LCD screen 1: inside
     //Serial.print("Schreibe LCD Bild 1: innen\n");
     lcd.clear();
     lcd.setCursor(19, 3);
     lcd.print("k");
-    lcd.setCursor(7, 0); // Spalte,Zeile
+    lcd.setCursor(7, 0); // Column,Row
     lcd.print("INNEN ");
     lcd.setCursor(0, 1);
     lcd.print(" T=");
@@ -239,18 +219,18 @@ void loop() {
     lcd.print("%");
     lcd.setCursor(0, 2);
     lcd.print("TP=");
-    lcd.print(TD1);
+    lcd.print(TODP1);
     lcd.print("C  AF=");
-    lcd.print(AF1);
+    lcd.print(AH1);
     lcd.setCursor(0, 3);
-    lcd.print("Luefter:   ");
-    if (Luefter == false) {
+    lcd.print("fan:   ");
+    if (fan == false) {
       lcd.print("AUS");
     }
     else {
       lcd.print("AN");
     }
-    delay(anzeigedauer);
+    delay(screentime);
     
     // LCD Bild 2: AUSSEN
     //Serial.print("Schreibe LCD Bild 2: aussen\n");
@@ -267,18 +247,18 @@ void loop() {
     lcd.print("%");
     lcd.setCursor(0, 2);
     lcd.print("TP=");
-    lcd.print(TD2);
+    lcd.print(TODP2);
     lcd.print("C  AF=");
-    lcd.print(AF2);
+    lcd.print(AH2);
     lcd.setCursor(0, 3);
-    lcd.print("Luefter:   ");
-    if (Luefter == false) {
+    lcd.print("fan:   ");
+    if (fan == false) {
       lcd.print("AUS");
     }
     else {
       lcd.print("AN");
     }
-    delay(anzeigedauer);
+    delay(screentime);
     
     // LCD Bild 3: ZEIT UND DATUM
     //Serial.print("Schreibe LCD Bild 3: Status\n");
@@ -318,55 +298,55 @@ void loop() {
     }
     lcd.print(now.second(), DEC);
     lcd.setCursor(0, 3);
-    lcd.print("Luefter:   ");
-    if (Luefter == false) {
+    lcd.print("fan:   ");
+    if (fan == false) {
       lcd.print("AUS");
     }
     else {
       lcd.print("AN");
     }
-    delay(anzeigedauer);
+    delay(screentime);
   
     
     ///////////////////////////////////////////////////////////////
     // SD Card logging // DB: n, o, p
     //////////////////////////////////////////////////////////////
-    // nur schreiben, wenn mehr als eine Minute vergangen ist:
+    // only write to SD card if more than a minute has passed
     lcd.setCursor(19, 3);
     lcd.print("n");
     if (lastwrite != now.minute()) {
-      String dataString = ""; // String für Datalogging auf SD Karte
-      // Format: unixtime;t1;h1;TD1;AF1;t2;h2;TD2;AF2;Luefter
-      // für korrektes Datum in LibreofficeCalc: =A1/86400+25569
+      String dataString = ""; // string for datalog to SD
+      // format: unixtime;t1;h1;TODP1;AH1;t2;h2;TODP2;AH2;fan
+      // get correct date in LibreOfficeCalc: =A1/86400+25569
       dataString += String(now.unixtime());
       dataString += ";";
       dataString += String(t1);
       dataString += ";";
       dataString += String(h1);
       dataString += ";";
-      dataString += String(TD1);
+      dataString += String(TODP1);
       dataString += ";";
-      dataString += String(AF1);
+      dataString += String(AH1);
       dataString += ";";
       dataString += String(t2);
       dataString += ";";
       dataString += String(h2);
       dataString += ";";
-      dataString += String(TD2);
+      dataString += String(TODP2);
       dataString += ";";
-      dataString += String(AF2);
+      dataString += String(AH2);
       dataString += ";";
-      dataString += String(Luefter);
+      dataString += String(fan);
       
       ///////////////////////////////////////////////////////////////
-      // Schreiben auf SD Karte
+      // Write to SD card
+      ///////////////////////////////////////////////////////////////
       
       lcd.setCursor(19, 3);
       lcd.print("o");
-      // Datei öffnen. Achtung: es kann immer nur eine Datei geöffnet,
-      // sein, also Datei am Ende immer wieder schließen!
+      // open file. don't forget to close it!
       File dataFile = SD.open("log.txt", FILE_WRITE);
-      // Schreiben, wenn die Datei verfügbar ist:
+      // write if file is available:
       if (dataFile) {
         dataFile.println(dataString);
         dataFile.close();
@@ -375,17 +355,17 @@ void loop() {
         lcd.clear();
         lcd.setCursor(0, 1);
         lcd.print("Schreibe auf SD!");
-        delay(anzeigedauer);
+        delay(screentime);
       }
-      // Errormeldung, wenn nicht verfügbar:
+      // error handling:
       else {
         //Serial.println("Kann datalog.txt nicht öffnen!");
         lcd.clear();
         lcd.setCursor(0, 1);
         lcd.print("SD Karten Fehler");
-        delay(anzeigedauer);
+        delay(screentime);
       }
-      lastwrite = now.minute(); // lastwrite auf aktuellen Minutenwert setzen
+      lastwrite = now.minute(); // set lastwrite to now
       lcd.setCursor(19, 3);
       lcd.print("p");
     }
@@ -395,7 +375,7 @@ void loop() {
   //Serial.print("///// END LOOP ///// \n"); 
 }
 
-// erzeugt auch RAM Probleme:
+// disabled due to RAM issues:
 // void db(char Buchstabe) {
 //   lcd.setCursor(19, 3);
 //   lcd.print(buchstabe);
