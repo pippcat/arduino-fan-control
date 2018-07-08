@@ -24,7 +24,6 @@ How it works
 ------------
 
 ![decision tree](images/fancontrol.png?raw=true "decision tree of program logic")
-<<<<<<< HEAD
 
 
 Wire plan
